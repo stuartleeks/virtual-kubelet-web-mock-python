@@ -7,6 +7,8 @@ from flask_cors import CORS
 import datetime
 from datetime import datetime
 
+import os
+
 def getutcnow():
     return datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
 
@@ -90,7 +92,19 @@ def nodeConditions():
 
 @app.route('/nodeAddresses', methods=['GET'])
 def nodeAddresses():
-    return jsonify([])
+    kubelet_port = os.environ.get('KUBELET_PORT')
+    kubelet_pod_ip = os.environ.get('VKUBELET_POD_IP')
+    if kubelet_pod_ip == None:
+        print ('NodeAddresses - returning emtpy list')
+        return jsonify([])
+    else:
+        print('NodeAddresses - returning InternalIP ' + kubelet_pod_ip)
+        return jsonify([
+            {
+                'type': 'InternalIP',
+                'address': kubelet_pod_ip
+            }
+        ])
 
 @app.route('/getPods', methods=['GET'])
 def getPods():
@@ -143,6 +157,24 @@ def deletePod():
         pods.remove(matchingPod)
         return ('', 200)
     return ('', 404)
+
+@app.route('/getContainerLogs', methods=['GET'])
+def getContainerLogs():
+    namespace = request.args.get('namespace')
+    pod_name = request.args.get('podName')
+    container_name = request.args.get('containerName')
+
+    pod = getPod(namespace, pod_name)
+
+    if pod == None:
+        return ('No such pod', 404)
+
+    for container in pod['spec']['containers']:
+        if container['name'] == container_name:
+            return "Simulated log content for {}, {}, {}\nIf this provider actually ran the containers then the logs would appear here ;-)\n".format(namespace, pod_name, container_name)
+
+    return ('No such container', 404)
+
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0',port='3000')
