@@ -11,6 +11,12 @@ def getutcnow():
     return datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
 
 pods = []
+def getPod(namespace, name):
+    for pod in pods:
+        if pod['metadata']['namespace'] == namespace and \
+           pod['metadata']['name'] == name:
+            return pod
+    return None
 
 app = flask.Flask(__name__)
 CORS(app)
@@ -47,8 +53,39 @@ def nodeConditions():
             'lastTransitionTime': utcnow,
             'reason': 'KubeletReady',
             'message': 'At your service'
-        }
-        # TODO add more conditions
+        },
+        { 
+            'type': 'OutOfDisk',
+            'status': 'False',
+            'lastHeartbeatTime': utcnow,
+            'lastTransitionTime': utcnow,
+            'reason': 'KubeletHasSufficientDisk',
+            'message': 'Plenty of disk space here'
+        },
+        { 
+            'type': 'MemoryPressure',
+            'status': 'False',
+            'lastHeartbeatTime': utcnow,
+            'lastTransitionTime': utcnow,
+            'reason': 'KubeletHasSufficientMemory',
+            'message': 'Plenty of memory here'
+        },
+        { 
+            'type': 'DiskPressure',
+            'status': 'False',
+            'lastHeartbeatTime': utcnow,
+            'lastTransitionTime': utcnow,
+            'reason': 'KubeletHasNoDiskPressure',
+            'message': 'At your service'
+        },
+        { 
+            'type': 'NetworkUnavailable',
+            'status': 'False',
+            'lastHeartbeatTime': utcnow,
+            'lastTransitionTime': utcnow,
+            'reason': 'RouteCreated',
+            'message': 'Cables all intact'
+        },
     ])
 
 @app.route('/nodeAddresses', methods=['GET'])
@@ -86,14 +123,25 @@ def createPod():
     pods.append(pod)
     return ('', 200)
 
+
 @app.route('/getPodStatus', methods=['GET'])
 def getPodStatus():
     namespace = request.args.get('namespace')
     name = request.args.get('name')
-    for pod in pods:
-        if pod['metadata']['namespace'] == namespace and \
-           pod['metadata']['name'] == name:
-            return jsonify(pod['status'])
+    pod = getPod(namespace, name)
+    if pod != None:
+        return jsonify(pod['status'])
+    return ('', 404)
+
+@app.route('/deletePod', methods=['DELETE'])
+def deletePod():
+    pod = request.json
+    namespace = pod['metadata']['namespace']
+    name = pod['metadata']['name']
+    matchingPod = getPod(namespace, name)
+    if matchingPod != None:
+        pods.remove(matchingPod)
+        return ('', 200)
     return ('', 404)
 
 if __name__ == "__main__":
